@@ -1259,6 +1259,7 @@ FirstUnusedSwi  * (.-%BT05)/4
         DebugError "FileCore SWI error "
  ]
         Pull    "SB"
+        SavePSR lr
         B       PullLinkKeepV
 
 BadSwi
