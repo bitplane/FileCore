@@ -13,9 +13,7 @@
 ; limitations under the License.
 ;
 
-        GBLL StrongARM
-StrongARM  SETL {TRUE}
-
+        GET     VersionASM
         GET     Version
         GET     s.Fixes
         GET     s.AsmHdr
@@ -40,6 +38,10 @@ StrongARM  SETL {TRUE}
         GET     Hdr:MultiFS
         GET     Hdr:NewErrors
         GET     Hdr:Territory
+        GET     Hdr:Machine.<Machine>
+
+        GBLL StrongARM
+StrongARM  SETL :LNOT:STB
 
         GET     s.DebugOpts
         GET     s.MyMacros

@@ -778,7 +778,7 @@ DoCheckMap
         BLNE    FullLookUp      ;(R1,R2->R0-R6,V)
         BVS     %FT80
 
- [ Version >= 205
+ [ Module_Version >= 205
         ; Reject non-FileCore discs
         BL      DiscMustBeFileCore      ;(R3->V,R0)
         BVS     %FT80
@@ -978,7 +978,7 @@ DoCompact
   |
         BL      FloppyDiscWriteBehindWait       ;(R3)
   ]
-  [ Version >= 205
+  [ Module_Version >= 205
         ; Check for drive type based on drive number, not disc number
         MOV     LR, R3, LSR #(32-3)
         DiscRecPtr  LR, LR
@@ -1326,7 +1326,7 @@ DoDefect
         MOV     R2, #MustBeDisc
         BL      FullLookUp      ;(R1,R2->R0-R6,V)
 
- [ Version >= 212
+ [ Module_Version >= 212
         BLVC    DiscMustBeFileCore
         BVS     %FT81
 
@@ -1407,7 +1407,7 @@ DoDefect
         BVS     %FT81
 
 
-  [ Version >= 205
+  [ Module_Version >= 205
         BL      DiscMustBeFileCore ;(R3->V,R0)
         BVS     %FT81
   ]
@@ -1572,7 +1572,7 @@ DoDefect
 27
         ; Now update the bad block list (if present)
 
- [ Version >= 205
+ [ Module_Version >= 205
         ; Base presence of defect list on presence of defect list
         ; (These checks _ASSUME_ disc is in a drive)
         MOV     LR, R3, LSR #(32-3)
@@ -1674,7 +1674,7 @@ UnTermCommon
         Pull    "R0,R2,R11,PC",,^
 
 51
- [ Version >= 212
+ [ Module_Version >= 212
  |
         Pull    "R2,R3"
         BL      RdLinkBits      ;(R10,R11->R8,Z)
@@ -1817,7 +1817,7 @@ UnTermCommon
         BL      FileCoreExit
         Pull    "R7-R11,SB,PC"
 
- [ Version >= 212
+ [ Module_Version >= 212
 ; ==============
 ; DoDefectMapOut
 ; ==============
@@ -2610,7 +2610,7 @@ ActiveDismountDisc ROUT
 ; exit If error V set, R0 result
 
 DismountDisc
- [ Version >= 205
+ [ Module_Version >= 205
         Push    "R0-R7,LR"
  |
         Push    "R0-R6,LR"
@@ -2630,7 +2630,7 @@ DismountDisc
         BL      CloseAllByDisc  ;(R1->R0,V)
         MOVVS   R5,R0
 
- [ Version >= 205
+ [ Module_Version >= 205
   [ DebugL
         DREG    R6, "Dismounting disc "
   ]
@@ -2713,7 +2713,7 @@ DismountDisc
 95
         BL      SetVOnR0
         STRVS   R0, [SP]
- [ Version >= 205
+ [ Module_Version >= 205
         Pull    "R0-R7,PC"
  |
         Pull    "R0-R6,PC"
@@ -3183,7 +3183,7 @@ DoMap ROUT
         BL      FullLookUp              ;(R1,R2->R0-R6,C,V)
         BVS     %FT95
 05
- [ Version >= 205
+ [ Module_Version >= 205
         BL      DiscMustBeFileCore      ;(R3->V,R0)
         BVS     %FT95
  ]

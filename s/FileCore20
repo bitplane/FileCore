@@ -16,7 +16,7 @@
 
         TTL     "Operations involving disc <-> drive mapping"
 
- [ Version >= 209
+ [ Module_Version >= 209
 ; Remove conditional assemblies from this file
  ]
 

@@ -457,7 +457,7 @@ GenIndDiscOp
 99
         ; Background op - update process block
         Push    "LR"
- [ Version >= 205
+ [ Module_Version >= 205
         ; Test for Winnie/Floppy disc now has to test drive number not disc number
         ; which is what should have been done anyway
         MOV     R9, R2, LSR #(32-3)
@@ -713,7 +713,7 @@ RetryDiscOp ROUT
 ;  R5 ->disc rec
 ;  R6 ->sector cache   extended sector cache
 
- [ Version >= 209
+ [ Module_Version >= 209
 ; Remove all version and other conditionals from this operation
 ; Store in the drive record details of the last format operation
  ]

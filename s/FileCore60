@@ -16,7 +16,7 @@
 
         TTL     "OsFun"
 
- [ Version >= 212
+ [ Module_Version >= 212
  ; Versioned-out redundent code removed from source
  ]
 
@@ -424,7 +424,7 @@ DoOsFunOpt ROUT
         MOVNE   R0, #0
         MOVNE   PC, LR
         AND     R2, R2, #3
- [ Version >= 212
+ [ Module_Version >= 212
         Push    "R3,LR"
         BL      IdentifyCurrentDisc     ;(->R0,R3,V)
         BLVC    WriteBootOption         ;(r2,r3->r0,V)
@@ -720,7 +720,7 @@ DoOsFunBootup ROUT
         Push    "R1-R6"
         SWI     XOS_ReadEscapeState
         BCS     %FT90
- [ Version >= 212
+ [ Module_Version >= 212
         BL      IdentifyCurrentDisc
         BVS     %FT95
         BL      DiscAddToRec            ;(R3->LR)
