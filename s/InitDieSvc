@@ -329,6 +329,12 @@ InitEntry ROUT          ; NO REENTRANCY CHECK NEEDED
         BL      BlockMove
         BL      InvalidateFragCache
 
+; reset the directory cache
+        BL      LockDirCache
+        BL      InvalidateDirCache
+        BL      CheckDirCache
+        BL      UnlockDirCache
+
 ;initialise Drive & disc records, ptrs to Free space Maps and defect lists
         sbaddr  R4, DrvRecs
         sbaddr  R5, DiscRecs

@@ -263,7 +263,8 @@ Mess1                   ;R0,R1,LR stacked
         TEQP    PC, LR          ;go to supervisor mode, preserve FI, set EQ
         nop                     ;delay for mode change
  |
-        ORR     LR, LR, #SVC26_mode :OR: Z_bit :OR: I32_bit
+        ORR     LR, LR, #SVC26_mode :OR: I32_bit
+        ORR     LR, LR, #Z_bit
         MSR     CPSR_cf, LR
  ]
         Push    "LR"

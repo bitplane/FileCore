@@ -1231,6 +1231,10 @@ ExtendFileCache
  [ DebugC :LOR: DebugG
         BNE     %FT01
         DLINE   "extend failed"
+        LDRB    LR, Flags
+        DREG    LR, "Flags=",cc,Byte
+        LDRB    LR, Interlocks
+        DREG    LR, " Interlocks=",,Byte
         B       %FT02
 01
         DREG    R11,,cc

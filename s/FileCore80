@@ -1628,8 +1628,9 @@ WriteBuffersWork        # 0
         DLINE   "Aha!"
  ]
         B       %BT33           ;loop to fill any finished buffers
-
-
+ [ DebugBv
+        LTORG
+ ]
 60
  [ DebugBv
         CPBs

@@ -827,7 +827,13 @@ DoOsFunShutDown
         B       %FT10
 05
         BL      WhatDisc        ;(r1->r0-r3,V) so know where to park winnies
+ [ {FALSE}
         MOVVS   r4, r0          ;ONLY REPORT LAST ERROR AT PRESENT
+ |
+        BVC     %FT10
+        TEQ     r0, #DriveEmptyErr
+        MOVNE   r4, r0
+ ]
 10
         SUBS    r1, r1, #1
         BPL     %BT05
