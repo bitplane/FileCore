@@ -13,6 +13,8 @@
 ; limitations under the License.
 ;
 
+        GBLL StrongARM
+StrongARM  SETL {TRUE}
 
         GET     Version
         GET     s.Fixes
