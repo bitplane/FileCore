@@ -209,7 +209,7 @@ $lab    *       1 :SHL: ($bitnum)
         ]
         Pull    "LR"
 15
-        TEQP    PC, R0          ;restore PSR
+        RestPSR R0              ;restore PSR
         nop                     ;delay in case mode change
         Pull    "R0,R1,LR"
 21

@@ -310,6 +310,12 @@ InitEntry ROUT          ; NO REENTRANCY CHECK NEEDED
 ;initialise hardware-specific bits
         BL      InitialiseHardware
 
+;check location of System Heap
+        MOV     R0, #0
+        SWI     XOS_ReadDynamicArea
+        LDRVS   R0, =&01C02000
+        STR     R0, SysHeapStart
+
 ;initialise critical subroutine workspace
         sbaddr  R0, CriticalStack1
         STR     R0, CriticalSP1
@@ -699,7 +705,11 @@ DieEntry
 01
  ]
 
+ [ NewErrors
+        MOVVS   R9, R0
+ |
         ORRVS   R9, R0, #ExternalErrorBit
+ ]
         MOVS    R0, R9
         MOVNES  R10,R10         ;only error on init
         BEQ     %BT70
@@ -936,8 +946,18 @@ will need to finish of critical routines (write FS Map and dir etc)
         TSTNES  R1, #Active
         MOVNE   R1, #DataLostErr
         STRNE   R1, [R0, #ProcessError]
+ [ NewErrors
+        BEQ     %FT96
+        LDR     R1, FS_Flags
+        TSTS    R1, #NewErrorSupport
+        LDR     R1, [R0, #ProcessStartPtr]
+        MOVNE   R1, R1, LSR #2
+        STR     R1, [R0, #ProcessStatus]
+96
+ |
         LDRNE   R1, [R0, #ProcessStartPtr]
         STRNE   R1, [R0, #ProcessStatus]
+ ]
         MOV     PC, LR
 
 

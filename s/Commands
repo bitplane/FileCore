@@ -1551,11 +1551,13 @@ UnTermCommon
         MOVEQ   R0, LR
         CMPS    LR, #DeleteChar
         CMPNES  LR, #" "
-        BLHI    DoXOS_WriteC
+        BLS     %FT485
+        BL      DoXOS_WriteC
         ADDVS   SP, SP, #4*4
         BVS     %FT78
-        SUBHIS  R11,R11,#1
+        SUBS    R11,R11,#1
         BHI     %BT48
+485
         Pull    "R0,R2,R11,PC"
 
  [ BigDir
@@ -1628,10 +1630,12 @@ BigTermCommon
         BNE     %FT69
 
         CMPS    R7, #0          ;V=0
-        MOVEQ   R0, #"."
-        BLEQ    DoXOS_WriteC
+        BNE     %FT61
+        MOV     R0, #"."
+        BL      DoXOS_WriteC
         BVS     %FT78
-        BLEQ    %BT42           ;(R3,R4->R10) print out filename
+        BL      %BT42           ;(R3,R4->R10) print out filename
+61
         Push    "R4,R5"
         BL      ReadLen         ;(R4->LR)
         MOV     R0, LR
@@ -2641,43 +2645,44 @@ DismountDisc
         DLINE   "LastDiscOpWasFormat clear (D)"
  ]
 
-        ; Park disc if has defect list
+        ; Park disc if has defect list, and is a hard disc
         TST     LR, #HasDefectList
-        MOVNE   R1, #SeekOp :OR: NoEscape;if winnie seek to park address given
-        LDRNE   R2, DefectSpace         ;in defect Map
-        ADDNE   R2, SB, R2
+        BEQ     %FT04                   ; no parking needed
+        DiscRecPtr LR, R6               ; get disc record ptr
+        LDRB    R0, [LR, #Density]      ; is it a hard disc
+        TEQ     R0, #0
+        BNE     %FT04                   ; if not, don't park it
+
+        MOV     R1, #SeekOp :OR: NoEscape;if winnie seek to park address given
+        LDR     R2, DefectSpace         ;in defect Map
+        ADD     R2, SB, R2
         ASSERT  SzDefectList = (1 :SHL: 9)
-        ADDNE   R2, R2, R7, LSL #9
-        LDRNE   R2, [R2,#ParkDiscAdd]
+        ADD     R2, R2, R7, LSL #9
+        LDR     R2, [R2,#ParkDiscAdd]
 
  [ BigDisc
-	BEQ	%FT04                   ; no parking needed
-	DiscRecPtr LR,R6                ; get disc record ptr
+	DiscRecPtr LR,R6
 	LDR	R0, [LR, #DiscSize2]    ; get discsize2
-	MOVS	R0, R0                  ; is it big?
+	MOVS	R0, R0                  ; is it small (discsize < 2^29 bytes?)
 	LDREQ	R0, [LR, #DiscSize]
-        TSTEQS  R0, #DiscBits           ; if so then dismount
-	LDREQB	LR, [LR,#SectorSize]
-	MOVEQ	R2, R2, LSR LR
+        TSTEQS  R0, #DiscBits           ; if so then ParkDiscAdd is in bytes
+	LDREQB	LR, [LR,#SectorSize]    ; so shift it down to a sector address
+	MOVEQ	R2, R2, LSR LR          ; else it's in sectors, leave it alone
         ORR     R2, R2, R6, LSL #(32-3)
   [ DebugL
-        BEQ     %FT01
         DREG    R2, "Parking at address "
-01
   ]
         BL      DoDiscOp                ;(R1-R4->R0-R4)
 04
  |
-        ORRNE   R2, R2, R6, LSL #(32-3)
+        ORR     R2, R2, R6, LSL #(32-3)
   [ DebugL
-        BEQ     %FT01
         DREG    R2, "Parking at address "
-01
   ]
-        BLNE    DoDiscOp                ;(R1-R4->R0-R4)
+        BL      DoDiscOp                ;(R1-R4->R0-R4)
  ]
 
-        MOVVS   R5, R0
+04      MOVVS   R5, R0
 
 50
         MOV     R0, R6
@@ -3684,8 +3689,14 @@ DoVerify ROUT
         MOV     R3, #0
         BL      DoDiscOp        ;(R1-R4->R0-R4,V)
         BVC     %FT99
+ [ NewErrors
+        BICS    LR, R0, #&FF
+        TSTNES  R0, #NewDiscErrorBit
+        BEQ     %FT99
+ |
         TSTS    R0, #DiscErrorBit
         BEQ     %FT99
+ ]
         Push    "R1,R2"
         MOV     R1, #RestoreOp
         BL      DoDiscOp        ;(R1-R4->R0-R4,V)
@@ -3698,29 +3709,21 @@ DoVerify ROUT
         MOV     R8, #VerifyRetries
         MOV     R9, R2
         BL      DoXOS_NewLine   ;(->R0,V)
+        BICVC   R0, R2, #DiscBits
  [ BigDisc ;SBP: Thu 15th December 1994 Walked thru, push/pull of R1 not
 ; needed - use R3 instead
-	BVS	%FT95
-        BIC     R0, R2, #DiscBits
-	LDRB	LR, [R5,#SectorSize]
-	MOV	R3, R0, LSL LR	;bottom 32 bits of addr
-	RSB	LR, LR, #32	;shift to get top 32 bits of addr
-	MOV	R0, R0, LSR LR	;top 32 bits
-        BL      WrHex           ;(R0->R0,V) - do top 32 bits of number
-	MOVVC	R0,R3		; - do bottom 32 bits
-	BLVC	WrHex		;
-        BLVC    DoSpace         ;(->R0,V)
- |
-        BICVC   R0, R2, #DiscBits
+	LDRVCB  LR, [R5,#SectorSize]
+	MOVVC   R3, R0, LSL LR  ;bottom 32 bits of addr
+	RSBVC   LR, LR, #32     ;shift to get top 32 bits of addr
+	MOVVC   R0, R0, LSR LR  ;top 32 bits
+        BLVC    WrHex           ;(R0->R0,V) - do top 32 bits of number
+	MOVVC	R0,R3           ; - do bottom 32 bits
+ ]
         BLVC    WrHex           ;(R0->R0,V)
         BLVC    DoSpace         ;(->R0,V)
- ]
 94
         MOVVC   R0, #"?"
         BLVC    DoXOS_WriteC    ;(R0->R0,V)
- [ BigDisc
-95
- ]
         BVS     %FT99
         B       %BT92
 

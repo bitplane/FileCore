@@ -741,6 +741,11 @@ ReadTimeDate
 FindErrBlock ROUT
         Push    "R1-R3,LR"
         SavePSR R3
+ [ NewErrors
+        ASSERT  BigDisc
+        CMP     R0, #256
+        BHS     %FT45
+ |
         TSTS    R0, #ExternalErrorBit
         BICNE   R0, R0, #ExternalErrorBit
  [ BigDisc
@@ -750,6 +755,7 @@ FindErrBlock ROUT
  ]
         TSTS    R0, #DiscErrorBit
         BNE     %FT40
+ ]
  [ Debug3
 	DLINE	"FindErrBlock: In error table bit"
  ]
@@ -783,6 +789,7 @@ FindErrBlock ROUT
         BL      copy_error
         B       %FT50
 
+ [ :LNOT: NewErrors
 40                              ;Form disc err string
         Push    "r0,r4-r6"
  [ Debug3
@@ -833,6 +840,7 @@ FindErrBlock ROUT
         ; apparent unbalanced stack pull is correct
         ADD     sp, sp, #24
         Pull    "r4-r6"
+ ] ; :LNOT:NewErrors
 
  [ BigDisc
 	B	%FT50
@@ -840,9 +848,17 @@ FindErrBlock ROUT
  [ Debug3
 	DLINE	"FindErrBlock: 45"
  ]
+ [ NewErrors
+        TSTS    R0,#NewDiscErrorBit
+ |
 	TSTS	R0,#DiscErrorBit
+ ]
 	BEQ	%FT50
+ [ NewErrors
+	BIC	R0,R0,#NewDiscErrorBit
+ |
 	BIC	R0,R0,#DiscErrorBit
+ ]
 ; here if using an extended process error block
         Push    "r0,r4-r6"
         SUB     sp, sp, #40
@@ -850,24 +866,35 @@ FindErrBlock ROUT
         CLRV    ; to ensure we catch out errors
 
         ; Drive number
+ [ NewErrors
+        LDRB    r0, [r0,#0]
+ |
 	LDR	r0, [r0,#4]
         MOV     r0, r0, LSR #(32-3)     ; drive number (external)
-        AND     r0, r0, #7
+ ]
         MOV     r1, sp
         MOV     r2, #4
         BL      OnlyXOS_ConvertCardinal4
 
         ; Disc error number
         LDRVC   r0, [sp, #40]
+ [ NewErrors
+        LDRVCB  r0, [r0, #1]
+ |
 	LDRVC	r0, [r0]
+ ]
         ANDVC   r0, r0, #MaxDiscErr
         ADDVC   r1, sp, #4
         MOVVC   r2, #4
         BLVC    OnlyXOS_ConvertHex2
+	BVS	%FT47
 
-	BVS	%FT46
         ; Address
         LDR     r0, [sp, #40]
+ [ NewErrors
+        LDR     r5, [r0, #4]
+        LDR     r0, [r0, #8]
+ |
 	LDR	r1, [r0, #4]
 	MOV	r0, r1, LSR #29		; drive bits
 
@@ -882,35 +909,46 @@ FindErrBlock ROUT
 	RSB	r6, r4, #32
 	BIC	r5, r1, #DiscBits
 	MOV	r0, r5, LSR r6
+ ]
+        MOV     r6, r0                  ; remember upper word
         ADD     r1, sp, #8
         MOV     r2, #12
         BL      OnlyXOS_ConvertHex8
+	BVS	%FT47
 
-	BVS	%FT46
+ [ NewErrors
+        MOV     r0, r5
+ |
 	MOV	r0, r5, LSL r4
+ ]
 	ADD	r1, sp, #16
 	MOV	r2, #12
 	BL	OnlyXOS_ConvertHex8
+        BVS     %FT47
 
-46
         ; Stitch it all together
         baddr   r0, DiscErrBlk, VC
-        LDRVC   r1, [r0]
-        BICVC   r1, r1, #&ff00
-        LDRVCB  lr, FS_Id
-        ORRVC   r1, r1, lr, ASL #8
-        BICVC   r1, r1, #&ff000000
-        LDRVC   lr, [sp, #40]
-;        ANDVC   lr, lr, #MaxDiscErr :SHL: 24
+        LDR     r1, [r0]
+        BIC     r1, r1, #&ff00
+        LDRB    lr, FS_Id
+        ORR     r1, r1, lr, ASL #8
+        BIC     r1, r1, #&ff000000
+        LDR     lr, [sp, #40]
+ [ NewErrors
+        LDRB    lr, [lr, #1]
+ |
         LDRB    lr, [lr, #0]
-        ORRVC   r1, r1, lr, LSL #24
-        ADDVC   r4, sp, #4
-        MOVVC   r5, sp
-        ADDVC   r6, sp, #8
-        BLVC    copy_error3             ; VS always out of this
+ ]
+        ORR     r1, r1, lr, LSL #24
+        ADD     r4, sp, #4
+        MOV     r5, sp
+        TEQ     r6, #0                  ; print 8 or 16 digits
+        ADDNE   r6, sp, #8
+        ADDEQ   r6, sp, #16
+        BL      copy_error3             ; VS always out of this
 
         ; apparent unbalanced stack pull is correct
-        ADD     sp, sp, #44
+47      ADD     sp, sp, #44
         Pull    "r4-r6"
  ]
 
@@ -1247,7 +1285,9 @@ OnlyExternal ROUT
 Internal ROUT
         Push    "R1,LR"
         SavePSR R1
+ [ :LNOT:NewErrors
         ORRVS   R0, R0, #ExternalErrorBit
+ ]
         CMP     SB, #0
         BEQ     %FT95
         LDRB    LR, ReEntrance
@@ -1264,14 +1304,63 @@ Internal ROUT
 ; ==================
 
 InternalFromParent
-        Push    "R0,LR"
-        SavePSR R0
+        Push    "R1,LR"
+        SavePSR R1
         LDRB    LR, ReEntrance
         BIC     LR, LR, #NoReEnterBit
         SUBS    LR, LR ,#1
         STRPLB  LR, ReEntrance
-        RestPSR R0,,f
-        Pull    "R0,PC"
+        RestPSR R1,,f
+ [ NewErrors
+        Pull    "R1,PC",VC
+; Error occurred - let's convert (if necessary) from old scheme to new.
+        LDR     LR, FS_Flags
+        TSTS    LR, #NewErrorSupport
+        BNE     %FT95
+        Pull    "R1,PC",NE
+        TSTS    R0, #DiscErrorBit
+        BNE     %FT50
+        TSTS    R0, #ExternalErrorBit
+        BICNE   R0, R0, #ExternalErrorBit
+        ANDEQ   R0, R0, #&FF
+        B       %FT95
+50
+        Push    "R2-R4"
+        TSTS    R0, #ExternalErrorBit
+        BNE     %FT60                           ; get R2 = disc error<<8 + drive number
+        AND     R2, R0, #MaxDiscErr:SHL:24      ;     R4 = byte address (low)
+        MOV     R3, R0, LSR #21                 ;     LR = byte address (high)
+        AND     R3, R3, #7
+        ORR     R2, R3, R2, LSR #16
+        MOV     R4, R0, LSL #8
+        BIC     R4, R4, #DiscBits
+        MOV     LR, #0
+        B       %FT70
+        ; indirect (sector) error version
+60      BIC     R0, R0, #ExternalErrorBit+DiscErrorBit
+        LDRB    R2, [R0, #0]
+        LDR     R4, [R0, #4]
+        MOV     R3, R4, LSR #29
+        ORR     R2, R3, R2, LSL #8
+        BIC     R4, R4, #DiscBits
+        EOR     LR, R3, #4
+        DrvRecPtr LR, LR
+        LDRB    LR, [LR, #DrvsDisc]
+        AND     LR, LR, #7
+        DiscRecPtr LR, LR
+        LDRB    R3, [LR, #SectorSize]
+        RSB     R0, R3, #32
+        MOV     LR, R4, LSR R0
+        MOV     R4, R4, LSL R3
+70
+        ASSERT  NewDiscErrorBit < bit2          ; STM ignores bits 0 and 1 :)
+        ADR     R0, ConvDiscErr+NewDiscErrorBit
+        STMIA   R0, {R2, R4, LR}
+        Pull    "R2-R4"
+95
+        RestPSR R1,,f
+ ]
+        Pull    "R1,PC"
 
 
 ; ===========
@@ -1483,7 +1572,7 @@ DoXOS_OsFind             ;(R0,R1->R0,V)
 OnlySysXOS_Heap                 ;(R0,R2,R3->R0-R3,V)
         Push    "R1,LR"
         BL      OnlyExternal
-        LDR     R1,=SysHeapStart
+        LDR     R1,SysHeapStart
         SWI     XOS_Heap
  [ Debug
         DebugError "XOS_Heap on system heap error:"

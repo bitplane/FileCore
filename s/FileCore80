@@ -3586,7 +3586,14 @@ UpdateProcess ROUT
 
 30
         ; If needs, go around again
+ [ NewErrors
+        LDR     LR, FS_Flags
+ ]
         LDR     R2, [R0, #ProcessStatus]
+ [ NewErrors
+        TST     LR, #NewErrorSupport
+        MOVNE   R2, R2, LSL #2
+ ]
         Push    "R6"
         LDMIA   R1, {R3,R6}
         ANDS    LR, R6, R8              ; Sub buffer offset
@@ -4676,29 +4683,44 @@ FindSubBuf ROUT
 02
  ]
 
+; KJB fix - with a nearly 2GB file, we may be asked
+; to look up &80000000 - this used to lock up. This
+; search has been converted to handle full 32-bit
+; file addressing by checking for the Fcb terminator
+; explicitly. We lose the oh-so-cunning signed
+; comparison when going backwards, and unsigned when
+; going forwards (phew).
+;
+; If we went to 4GB files, we would have another
+; problem, in that such a look-up would be impossible.
+; We might have to restrict files to 4GB-1KB.
+
         LDR     R1, [BufPtr,#BufFileOff]
         CMPS    R1, R0
-        BLT     %FT20
+        BLO     %FT20
         BEQ     %FT30
 
 10
         LDR     BufPtr, [BufPtr,#PrevInFile]
         LDR     R1, [BufPtr,#BufFileOff]
+        TEQS    BufPtr, Fcb
+        BEQ     %FT45
         CMPS    R1, R0
-        BGT     %BT10
-        MOVLT   BufOff, #32
+        BHI     %BT10
+        BLO     %FT45
         B       %FT30
 
 20
         LDR     BufPtr, [BufPtr,#NextInFile]
         LDR     R1, [BufPtr,#BufFileOff]
+        TEQS    BufPtr, Fcb
+        BEQ     %FT40
         CMPS    R1, R0
         BLO     %BT20
-        LDRHI   BufPtr, [BufPtr,#PrevInFile]
-        MOVHI   BufOff, #32
+        BHI     %FT40
 30
-        SUBEQ   BufOff, FileOff, R0
-        MOVEQ   BufOff, BufOff, LSR #5
+        SUB     BufOff, FileOff, R0
+        MOV     BufOff, BufOff, LSR #5
 
  [ DebugG
         DREG    BufOff,,cc
@@ -4708,6 +4730,15 @@ FindSubBuf ROUT
         RestPSR R2,,f
         Pull    "R0-R2,PC"
 
+40      LDR     BufPtr, [BufPtr,#PrevInFile]
+45      MOV     BufOff, #32
+ [ DebugG
+        DREG    BufOff,,cc
+        DREG    BufPtr,,cc
+        DLINE   "<FindSubBuf"
+ ]
+        RestPSR R2,,f
+        Pull    "R0-R2,PC"
 
 PriorityBlock
  = 0                    ; 0     -> 0

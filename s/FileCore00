@@ -897,6 +897,12 @@ DiscOp_ByteAddr # 4
 
 message_file_block a4 16 ; block for messagetrans
 
+ [ NewErrors
+ConvDiscErr     # 12
+ ]
+
+SysHeapStart    # 4
+
  [ BigDir
 Opt1Buffer      # BigDirMaxNameLen+1
  |

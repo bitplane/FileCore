@@ -49,7 +49,9 @@ copy_error ROUT
         ADR     R1, message_file_block
         MOV     R2, #0
         BL      DoXMessageTrans_ErrorLookup
+ [ :LNOT:NewErrors
         BIC     r0, r0, #ExternalErrorBit
+ ]
 
         ; Adjust the error number if it's unchanged from entry
         LDR     r1, [r0]

@@ -34,12 +34,23 @@
 ;  b30 1
 ;  b31 0
 
+ [ BigDisc
+; b31=1 & x30=1  => extended disc error
+;  b0 to b29 -> error block (!!!! 32-bit problem !!!!)
+;  error block word 0    b0 to b5 disc error num
+;                        b6 to b31 clear
+;  error block word 1    b0 to b28 disc sector address
+;                        b29 to b31 drive
+ ]
+
 ;except for 'escape' and 'disc error' internal error num = external error num
 
 MaxDiscErr      * 2_00111111
 
 ExternalErrorBit bit 30
 DiscErrorBit     bit 31
+
+NewDiscErrorBit  bit 0
 
 FileCoreModuleNum   * &108
 

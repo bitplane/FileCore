@@ -30,7 +30,18 @@
 ; exit: VC->can do operation on this disc, R0 corrupt
 ;       VS->operation not permitted, R0 error
 
-EnsureFSLock ROUT
+EnsureFSLock64 ROUT
+        Push    "r1,r2,lr"
+        LDRB    r2, [r2, #0]
+        AND     r1, r1, #OpMask         ; get actual operation being done
+; check this operation against list of write ops
+        TEQ     r1, #WriteSecsOp
+        TEQNE   r1, #WriteTrkOp
+        BEQ     %FT04
+        CLRV
+        Pull    "r1, r2, pc"
+
+EnsureFSLock
         Push    "r1,r2,lr"
         AND     r1, r1, #OpMask         ; get actual operation being done
 ; check this operation against list of write ops
@@ -43,20 +54,23 @@ EnsureFSLock ROUT
 ; here when a write operation - check lock status
 01
         MOV     r2, r2, LSR #29         ; get drive number
-        CMP	r2, #4
-	MOV	r0,r0
+04      CMP     r2, #4
 	Pull	"r1,r2,pc",LO		; not hard disc - ignore
 
         SWI     &44781+(1:SHL:17)       ; get the lock status
         BVC     %FT02
-        ORR     R0, R0, #1<<30
+ [ :LNOT:NewErrors
+        ORR     R0, R0, #ExternalErrorBit
+ ]
         Pull    "r1,r2,pc"              ; if error then return it
 02
 ; now check if FS is locked
         CMP	r0, #2
         BEQ     %FT03
         CLRV
-        ORR     R0,R0,#1<<30
+ [ :LNOT:NewErrors
+        ORR     R0,R0,#ExternalErrorBit
+ ]
 	Pull	"r1,r2,pc"		; not locked
 
 03
@@ -67,41 +81,17 @@ EnsureFSLock ROUT
 	BL	SetVOnR0
 	Pull	"r1,r2,pc"
 
-DoSwiDiscOp ROUT
-        Push    "r1,r5,r11,lr"
- [ Debug2 :LOR: Debug2D
-        DREG    r1, "DiscOp(",cc
-        DREG    r2, ",",cc
-        DREG    r3, ",",cc
-        DREG    r4, ",",cc
-        DLINE   ")"
- ]
- [ BigDisc
-        BL      EnsureFSLock            ; check that we can actually do this
-        Pull    "r1,r5,r11,pc",VS       ; if v set then return with error
- ]
-        MOV     r11, sp
-        EOR     R2, R2, #bit31          ; Convert to internal drive numbering
 
-        ASSERT  SzDiscRec :MOD: 4 = 0
-        MOVS    R5, R1, LSR #8
-        MOVNE   R5, R5, LSL #2
+; Construct disc record from disc format structure
+; entry: r4 -> format structure
+; exit:  sp lowered by unknown amount
+;        r5 -> disc record (contained in claimed stack)
+;        other registers preserved
 
-        AND     R1, R1, #&FF            ; Remove any embarasing bits from the op
+MakeDiscRecFromFormatStructure ROUT
 
-        BNE     %FT20                   ;if disc rec supplied by caller
+        Push    "r1,r2,r3,lr"
 
-10
-        ; Disc record not supplied by the user
-
-        AND     lr, r1, #OpMask
-        TEQ     lr, #WriteTrkOp
-        TEQEQ   r3, #0
-        BNE     %FT15
-
-        Push    "r1,r2,r3"
-
-        ; Construct disc record from disc format structure
  [ BigDisc
         SUB     sp, sp, #DiscRecSig2
  |
@@ -171,28 +161,26 @@ DoSwiDiscOp ROUT
         STRB    r1, [sp, #ZoneSpare]
         STRB    r1, [sp, #ZoneSpare+1]
  [ DebugL :LOR: Debug2D
-	DREG	r1, "Setting RootDir to (GenSWIs, 160) "
+	DREG	r1, "Setting RootDir to "
  ]
         STR     r1, [sp, #RootDir]
         LDR     r1, [r4, #DoFormatCylindersPerDrive]
 
  [ BigDisc
 ; generate both parts of DiscSize
-	Push	"R2"
-        LDRB    lr, [sp, #4+SecsPerTrk]
+        LDRB    lr, [sp, #SecsPerTrk]
         MUL     r1, lr, r1
-        LDRB    lr, [sp, #4+SectorSize]
+        LDRB    lr, [sp, #SectorSize]
         ADD     lr, lr, #1
 	RSB	r2, lr, #32
 	MOV	r2, r1, LSR r2
-        MOV     r1, r1, ASL lr
+        MOV     r1, r1, LSL lr
  [ DebugL :LOR: Debug2D
         DREG    r1, " DS1="
         DREG    r2, " DS2="
  ]
-	STR	r2, [sp, #4+DiscSize2]
-        STR     r1, [sp, #4+DiscSize]
-	Pull	"R2"
+	STR	r2, [sp, #DiscSize2]
+        STR     r1, [sp, #DiscSize]
  |
         LDRB    lr, [sp, #SectorSize]
         ADD     lr, lr, #1
@@ -217,7 +205,42 @@ DoSwiDiscOp ROUT
  |
         ADD     lr, sp, #DiscRecSig
  ]
-        LDMIA   lr, {r1,r2,r3}
+        LDMIA   lr, {r1,r2,r3,pc}
+
+
+DoSwiDiscOp ROUT
+        Push    "r1,r5,r11,lr"
+ [ Debug2 :LOR: Debug2D
+        DREG    r1, "DiscOp(",cc
+        DREG    r2, ",",cc
+        DREG    r3, ",",cc
+        DREG    r4, ",",cc
+        DLINE   ")"
+ ]
+ [ BigDisc
+        BL      EnsureFSLock            ; check that we can actually do this
+        Pull    "r1,r5,r11,pc",VS       ; if v set then return with error
+ ]
+        MOV     r11, sp
+        EOR     R2, R2, #bit31          ; Convert to internal drive numbering
+
+        ASSERT  SzDiscRec :MOD: 4 = 0
+        MOVS    R5, R1, LSR #8
+        MOVNE   R5, R5, LSL #2
+
+        AND     R1, R1, #&FF            ; Remove any embarasing bits from the op
+
+        BNE     %FT20                   ;if disc rec supplied by caller
+
+10
+        ; Disc record not supplied by the user
+
+        AND     lr, r1, #OpMask
+        TEQ     lr, #WriteTrkOp
+        TEQEQ   r3, #0
+        BNE     %FT15
+
+        BL      MakeDiscRecFromFormatStructure
         B       %FT30
 
 15
@@ -318,120 +341,7 @@ DoSwiSectorDiscOp ROUT
         TEQEQ   r3, #0
         BNE     %FT15
 
-        Push    "r1,r2,r3"
-
-        ; Construct disc record from disc format structure
- [ BigDisc
-        SUB     sp, sp, #DiscRecSig2
- |
-        SUB     sp, sp, #DiscRecSig
- ]
-        LDR     lr, [r4, #DoFormatSectorSize]
-        MOV     r3, #0
-11
-        MOVS    lr, lr, LSR #1
-        ADDNE   r3, r3, #1
-        BNE     %BT11
- [ DebugL :LOR: Debug2D
-        DREG    r3, "SS=",cc
- ]
-        STRB    r3, [sp, #SectorSize]
-        LDRB    r3, [r4, #DoFormatSectorsPerTrk]
- [ DebugL :LOR: Debug2D
-        DREG    r3, " SPT=",cc
- ]
-        STRB    r3, [sp, #SecsPerTrk]
-        LDRB    r3, [r4, #DoFormatOptions]
-        AND     r3, r3, #FormatSequenceSides
-        TEQ     r3, #FormatInterleaveSides
-        MOVEQ   r3, #2
-        MOVNE   r3, #1
- [ DebugL :LOR: Debug2D
-        DREG    r3, " H=",cc
- ]
-        STRB    r3, [sp, #Heads]
-        LDRB    r3, [r4, #DoFormatDensity]
- [ DebugL :LOR: Debug2D
-        DREG    r3, " D=",cc
- ]
-        STRB    r3, [sp, #Density]
-        MOV     r3, #0
-        ASSERT  LinkBits :MOD: 4 = 0
-        ASSERT  BitSize = LinkBits+1
-        ASSERT  RAskew = BitSize+1
-        ASSERT  BootOpt = RAskew+1
-        STR     r3, [sp, #LinkBits]
-
-        MOV     r2, #&100
-        LDRB    r3, [sp, #SecsPerTrk]
-        ADD     lr, r4, #DoFormatSectorList+2
-12
-        LDRB    r1, [lr], #4
-        CMP     r1, r2
-        MOVLO   r2, r1
-        SUBS    r3, r3, #1
-        BHI     %BT12
-
-        LDRB    r3, [r4, #DoFormatOptions]
-        AND     lr, r3, #FormatSequenceSides
-        TEQ     lr, #FormatInterleaveSides
-        ORRNE   r2, r2, #SequenceSides
-        TST     r3, #FormatDoubleStep
-        ORRNE   r2, r2, #DoubleStep
- [ DebugL :LOR: Debug2D
-        DREG    r2, " LS=",cc
- ]
-        STRB    r2, [sp, #LowSector]
-        MOV     r1, #0
-        STRB    r1, [sp, #Zones]
- [ BigMaps
- 	STRB	r1, [sp, #Zones2]
- ]
-        STRB    r1, [sp, #ZoneSpare]
-        STRB    r1, [sp, #ZoneSpare+1]
- [ DebugL :LOR: Debug2D
-	DREG	r1, "Setting RootDir to: (GenSWIs, 379) "
- ]
-        STR     r1, [sp, #RootDir]
-        LDR     r1, [r4, #DoFormatCylindersPerDrive]
- [ BigDisc
-        LDRB    lr, [sp, #SecsPerTrk]
-        MUL     r1, lr, r1
-        LDRB    lr, [sp, #SectorSize]
-        ADD     lr, lr, #1
-	RSB	r2, lr, #32
-	MOV	r2, r1, LSR r2
-        MOV     r1, r1, ASL lr
- [ DebugL :LOR: Debug2D
-        DREG    r1, " DS1="
-        DREG    r1, " DS2="
- ]
-        STR     r1, [sp, #DiscSize]
-        STR     r2, [sp, #DiscSize2]
- |
-        LDRB    lr, [sp, #SectorSize]
-        ADD     lr, lr, #1
-        MOV     r1, r1, ASL lr
-        LDRB    lr, [sp, #SecsPerTrk]
-        MUL     r1, lr, r1
- [ DebugL :LOR: Debug2D
-        DREG    r1, " DS="
- ]
-        STR     r1, [sp, #DiscSize]
- ]
-        MOV     r1, #0
-        STR     r1, [sp, #DiscId]
-        STR     r1, [sp, #DiscName+2]
-        STR     r1, [sp, #DiscName+6]
-
-        MOV     r5, sp
-
- [ BigDisc
-        ADD     lr, sp, #DiscRecSig2
- |
-        ADD     lr, sp, #DiscRecSig
- ]
-        LDMIA   lr, {r1,r2,r3}
+        BL      MakeDiscRecFromFormatStructure
         B       %FT30
 
 15
@@ -465,6 +375,147 @@ DoSwiSectorDiscOp ROUT
         EOR     R2, R2, #bit31          ; Convert back to external drive numbering
         MOV     sp, r11
         Pull    "r1,r5,r11,PC"
+
+
+DoSwiDiscOp64 ROUT
+        Push    "r1,r2,r5,r11,lr"
+DO64_R2Offset * 4
+ [ Debug2 :LOR: Debug2D
+        DREG    r1, "DiscOp(",cc
+        LDRB    lr, [r2, #0]
+        DREG    lr, ",:",cc,Byte
+        LDR     lr, [r2, #4]
+        DREG    lr, "/",cc
+        LDR     lr, [r2, #8]
+        DREG    lr,    ,cc
+        DREG    r3, ",",cc
+        DREG    r4, ",",cc
+        DREG    r5, ",",cc
+        DLINE   ")"
+ ]
+        LDRB    LR, [R2, #0]
+
+        MOV     r11, sp
+
+        CMP     LR, #8
+        BHS     DO64_BadDrive
+
+ [ BigDisc
+        BL      EnsureFSLock64          ; check that we can actually do this
+        Pull    "r1,r2,r5,r11,pc",VS    ; if v set then return with error
+ ]
+
+        AND     R1, R1, #&FF            ; Remove any embarasing bits from the op
+
+        TEQ     R5, #0
+        BNE     %FT20                   ;if disc rec supplied by caller
+
+10
+        ; Disc record not supplied by the user
+
+        AND     lr, r1, #OpMask
+        TEQ     lr, #WriteTrkOp
+        TEQEQ   r3, #0
+        BNE     %FT15
+
+        BL      MakeDiscRecFromFormatStructure
+        B       %FT30
+
+15
+        ; We must identify the disc to supply a disc record
+        LDRB    LR, [R2, #0]            ;drive
+        Push    "R1-R3"
+        EOR     R1, LR, #bit2           ;convert to internal numbering
+        BL      WhatDisc                ;(R1->R0-R3,V)
+        MOV     R5, R3
+        Pull    "R1-R3"
+
+        ; If error from WhatDisc then disc unreadable
+        BVS     %FT95
+
+        ; If disc record is internal, then the defect
+        ; list _Definitely_ does not prefixing it
+        BIC     R1, R1, #AltDefectBit
+        B       %FT30
+
+20
+        ; For the situation when a disc record is supplied we do a PollChange
+        ; here so that our idea of when the disc has changed doesn't get corrupted
+        ; by a head step clearing the (physical) drive's 'disc has changed' line.
+        LDRB    R0, [R2, #0]
+        EOR     R0, R0, #bit2           ;convert to internal numbering
+        BL      PollChange
+
+30
+ [ BigDisc
+	Push	"R1,R3"
+	LDRB	R3,[R5,#SectorSize]	; get sector size
+        LDMIB   R2,{R1,LR}              ; turn 64-bit byte address + drive
+        LDRB    R2,[R2,#0]              ; into packed
+        RSB     R0,R3,#32
+        MOV     R1,R1,LSR R3
+        ORR     R1,R1,LR,LSL R0
+        MOVS    LR,LR,LSR R3            ; ensure no overflow
+        TSTEQ   R1,#DiscBits
+        BNE     DO64_Overflow
+        ORR     R2,R1,R2,LSL #(32-3)    ; sector addr
+        EOR     R2, R2, #bit31          ; Convert to internal drive numbering
+
+	Pull	"R1,R3"
+ [ DebugL :LOR: Debug2D
+        DREG    r1, "DriveOp(",cc
+        DREG    r2, ",",cc
+        DREG    r3, ",",cc
+        DREG    r4, ",",cc
+        DLINE   ")"
+ ]
+	BL	RetryDriveOp		;
+;	LDR	LR,DiscOp_ByteAddr	; get end addr
+	LDRB	R5,[R5,#SectorSize]
+        LDR     R1,[SP, #DO64_R2Offset]
+ [ DebugL :LOR: Debug2D
+	DREG	R2, "Original address : "
+ 	DREG	R3, "Sectorsize : "
+ ]
+        BIC     R2,R2,#DiscBits
+        RSB     LR,R5,#32
+        MOV     LR,R2,LSR LR
+        MOV     R2,R2,LSL R5
+        STMIB   R1,{R2,LR}
+ [ DebugL :LOR: Debug2D
+	DREG	LR, "Result address : ",cc
+        DREG    R2
+ ]
+ |
+        LDRB    R0, [R2,#0]
+        LDMIB   R2, {R2, LR}
+        TST     R2, #DiscBits
+        TEQEQ   LR, #0
+        BNE     DO64_Overflow
+        ORR     R2, R2, R0, LSL #(32-3)
+        EOR     R2, R2, #bit31          ; Convert to internal drive numbering
+        BL      RetryDriveOp            ;(R1-R6->R0,R2-R4,R6,V)
+        LDR     LR, [sp, #DO64_R2Offset]
+        BIC     R2, R2, #DiscBits
+        STR     R2, [LR, #4]
+ ]
+
+        MOVVC   R0, #0
+95
+        MOV     sp, r11
+        Pull    "r1,r2,r5,r11,PC"
+
+DO64_BadDrive
+        MOV     R0, #BadDriveErr
+        BL      SetV
+        B       %BT95
+
+DO64_Overflow
+        MOV     R0, #BadParmsErr
+        BL      SetV
+        B       %BT95
+
+
 ; ***************************************************************************
 ;
 ; SWI FileCore_Create, after a few centuries, arrives here.
@@ -571,15 +622,13 @@ DoSwiCreate
 ; <<<<<<<<<<<<<<<<
 
 ParentFiqRelease
-        Push    "R0,LR"
-        SavePSR R0
+        Push    "LR"
         getSB
  [ DebugI
         DLINE   " R1 ",cc
  ]
         BL      ReleaseFiq
-        RestPSR R0,,f
-        Pull    "R0,PC"
+        Pull    "PC"
 
 
 
@@ -1046,13 +1095,13 @@ DoSwiDiscardReadSectorsCache ROUT
 
 DoSwiMiscOp ROUT
         Push    "lr"
+ [ BigDisc
+	TEQS	R0,#Misc_ReadInfo
+	BEQ	%FT01
+ ]
         CMP     r0, #Misc_Unused
         MOVHS   r0, #BadParmsErr
         SETV    HS
- [ BigDisc
-	CMPS	R0,#Misc_ReadInfo
-	BEQ	%FT01
- ]
         EORVC   r1, r1, #4
         BLVC    CheckDriveNumber
         BVS     %FT90
@@ -1148,6 +1197,13 @@ eject_common
         BLLE    Parent_Misc             ; Needs to be signed.
         Pull    "pc"
 
+DoSwiFeatures
+ [ NewErrors
+        MOV     R0, #Feature_NewErrors
+ |
+        MOV     R0, #0
+ ]
+        MOV     PC, LR
 
  [ VduTrap
 DebugVduTrap
@@ -1212,6 +1268,7 @@ SwiEntry ROUT
         TEQNE   r11, #FileCore_DescribeDisc - FileCoreSwiBase
         TEQNE   r11, #FileCore_MiscOp - FileCoreSwiBase
         TEQNE   r11, #FileCore_SectorDiscOp - FileCoreSwiBase
+        TEQNE   r11, #FileCore_DiscOp64 - FileCoreSwiBase
         ; Toggle Z bit to give NE if an r8-based SWI...
         TOGPSR  Z_bit, lr
         TEQNE   r8, #0
@@ -1240,6 +1297,8 @@ SwiEntry ROUT
  [ BigDisc
 	B	DoSwiSectorDiscOp
 	B	DoSwiFreeSpace64
+        B       DoSwiDiscOp64
+        B       DoSwiFeatures
  ]
  [ VduTrap
         B       DoDebugTrapVdu
@@ -1314,6 +1373,8 @@ SwiNames ROUT
  = "MiscOp", 0
  = "SectorOp", 0
  = "FreeSpace64", 0
+ = "DiscOp64", 0
+ = "Features", 0
  [ VduTrap
  = "TrapVdu",0
  = "UntrapVdu",0

@@ -191,8 +191,13 @@ FormatFFloppyPhysParams
         DCB     FormatInterleaveSides
         DCB     0       ; LowSector
         DCB     0       ; Interleave
+ [ ExtraSkew
+        DCB     1       ; Side/Side sector skew - enough for Iyonix controller set-up
+        DCB     3       ; Track/Track sector skew - enough for head settle + set-up
+ |
         DCB     0       ; Side/Side sector skew
         DCB     2       ; Track/Track sector skew - enough for head settle
+ ]
         DCB     &A5     ; Fill value
         DCD     160     ; Tracks to format (2 sides of 80 tracks)
         DCD     0       ; Fill
@@ -215,8 +220,13 @@ FormatGFloppyPhysParams
         DCB     FormatInterleaveSides
         DCB     0       ; LowSector
         DCB     0       ; Interleave
+ [ ExtraSkew
+        DCB     1       ; Side/Side sector skew - enough for Iyonix controller set-up
+        DCB     5       ; Track/Track sector skew - enough for head settle + set-up
+ |
         DCB     0       ; Side/Side sector skew
         DCB     4       ; Track/Track sector skew - enough for head settle
+ ]
         DCB     &A5     ; Fill value
         DCD     160     ; Tracks to format (2 sides of 80 tracks)
         DCD     0       ; Fill

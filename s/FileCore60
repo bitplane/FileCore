@@ -371,17 +371,18 @@ ScreenFormat ROUT
 NextField ROUT
         Push    "R0,R1,LR"
         SUBS    R11,R11,#1      ;line done ?
-        MOVLS   R11,R9
-        BLLS    DoXOS_NewLine   ;(->R0,V)
-        BVS     %FT95
-        BLS     %FT95
+        BHI     %FT05
+        MOV     R11,R9
+        BL      DoXOS_NewLine   ;(->R0,V)
+        B       %FT95
+05
         MOV     R1, R10
 10
         MOV     R0, #" "
         SUBS    R1, R1, #1
-        BLPL    DoXOS_WriteC    ;(R0->R0,V)
-        BVS     %FT95
-        BPL     %BT10
+        BMI     %FT95
+        BL      DoXOS_WriteC    ;(R0->R0,V)
+        BVC     %BT10
 95
         STRVS   R0, [SP]
         Pull    "R0,R1,PC"
@@ -404,9 +405,9 @@ WriteString ROUT
 10
         LDRB    R0, [R7],#1
         TEQS    R0, #0
-        BLNE    DoXOS_WriteC
-        BVS     %FT95
-        BNE     %BT10
+        BEQ     %FT95
+        BL      DoXOS_WriteC
+        BVC     %BT10
 95
         STRVS   R0, [SP]
         Pull    "R0,R7,PC"
@@ -1914,6 +1915,9 @@ MarkObjMappedIn ROUT
 ;  r2 = disc size
 ;  r6 unchanged
 ;
+
+ [ :LNOT:BigDisc
+
 DoOsFunReadFreeSpace ROUT
         Push    "r3,r7-r11,lr"
  [ DebugA
@@ -1947,7 +1951,18 @@ DoOsFunReadFreeSpace ROUT
 80
         Pull    "r3,r7-r11,pc"
 
- [ BigDisc
+ |
+DoOsFunReadFreeSpace ROUT
+        Push    "r3,r4,lr"
+        BL      DoOsFunReadFreeSpace64
+        TEQ     r1, #0
+        MOVNE   r0, #&FFFFFFFF
+        MOV     r1, r2
+        TEQ     r4, #0
+        MOVEQ   r2, r3
+        MOVNE   r2, #&FFFFFFFF
+        Pull    "r3,r4,pc"
+
 ; ======================
 ; DoOsFunReadFreeSpace64
 ; ======================
@@ -1988,17 +2003,16 @@ DoOsFunReadFreeSpace64 ROUT
 
         ; Tidy up at end
         BL      TestMap         ;(R3->Z)
-        MOVEQ   R2, R0          ; If new map max alloc size is whole free space
-	TSTS	R2, #&80000000
-	BEQ	%FT20
-	MOV	R2, #&7fffffff
-	LDRB	R4, [R10, #ZoneHead+SectorSize]
-	MOV	R2, R2, LSR R4
-	MOV	R2, R2, LSL R4
-20
+        BNE     %FT15
 
+        ; If new map, max alloc size is whole free space (but limited to 2GB-1)
+        ORRS    LR, R1, R0, LSR #31     ; NE if > &7FFFFFFF
+        MOVEQ   R2, R0
+        MOVNE   R2, #&7fffffff
+
+15
 	Push	"R0"
-        BL      SizeLessDefects64 ;(R3->R0,R1)
+        BL      SizeLessDefects64 ;(R3->LR,R0)
         MOV     R3, LR
 	MOV	R4, R0
 	Pull	"R0"

@@ -50,6 +50,8 @@ SWIClass        SETS    FileCoreSWI_Name
         AddSWI  MiscOp
         AddSWI	SectorDiscOp
         AddSWI	FreeSpace64
+        AddSWI  DiscOp64
+        AddSWI  Features
 
 ;Layout of create FileCore incarnation descriptor block
 
@@ -65,6 +67,7 @@ FloppyEjects    * 1 :SHL: 6 ; Floppies support MiscOp_Eject
 WinnieEjects    * 1 :SHL: 7 ; Winnies support MiscOp_Eject
 DriveStatusWorks * 1 :SHL: 8 ; Drive status supported
 BigDiscSupport  * 1 :SHL: 9
+NewErrorSupport * 1 :SHL: 10
 Create_Id       # 1
 Create_Title    # 4
 Create_BootText # 4
@@ -132,5 +135,10 @@ Format_Floppy           * 1 :SHL: 7
 ; drive status bits
 
 DriveReserved           * 1 :SHL: 0
+
+; features bits
+
+Feature_NewErrors       * 1 :SHL: 0
+
         OPT     OldOpt
         END
