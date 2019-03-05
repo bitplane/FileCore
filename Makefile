@@ -23,32 +23,28 @@
 #
 
 COMPONENT = FileCore
-
-HEADER1 = FileCore
-HEADER2 = MultiFS
-HEADER3 = FileCoreErr
-ASMCHEADER1 = FileCore
-CHEADER1 = FileCoreErr
-
-EXPORTS = ${C_EXP_HDR}.FileCore ${C_EXP_HDR}.FileCoreErr
+ASMHDRS   = FileCore FileCoreErr MultiFS
+ASMCHDRS  = FileCore
+HDRS      = FileCoreErr
+CMHGFILE  =
+SOURCES_TO_SYMLINK = HelpText
 
 TOKHELPSRC = ${TOKENSOURCE}
 HELPSRC    = HelpText
 
-include StdTools
-include AAsmModule
+ASM2TXT    = FileCoreErr h
 
-h.FileCoreErr: o.FileCoreErr
+include CModule
+
+ifeq ("${MAKE_VERSION}","")
+# amu requires these double-colon rules
+# but its implementation of double-colon rules is incompatible with GNU make
+# so make these rules dependent on which make utility we're using
+${DIRS} ::
 	${MKDIR} h
-	${LD} -bin -o $@ o.FileCoreErr
-	SetType $@ Text
 
-o.FileCoreErr: s.FileCoreErr
-	${MKDIR} o
-	${AS} -o $@ s.FileCoreErr -I<Hdr$Dir>.Global,<Hdr$Dir>.Interface
-
-clean::
-	@IfThere h Then ${ECHO} ${WIPE} h ${WFLAGS}
-	@IfThere h Then ${WIPE} h ${WFLAGS}
+clean ::
+	${WIPE} h ${WFLAGS}
+endif
 
 # Dynamic dependencies:

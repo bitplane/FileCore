@@ -1,0 +1,7 @@
+variables:
+  WHITESPACE_WHITELIST: "./Doc/* ./Test/BigSectors"
+  SUPPRESS_JOBS: "softload_gnu"
+
+include:
+  - project: 'Support/CI'
+    file: '/FileCore.yml'

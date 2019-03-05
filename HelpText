@@ -6,7 +6,7 @@ Backup_Help
  = TokenEscapeChar,Token0
  = " copies one whole floppy disc, (except free space) to another.",13
 Backup_Syntax
- = "Syntax: " 
+ = "Syntax: "
  = "*"
  = TokenEscapeChar,Token0
  = " <source drive> <dest. drive> [Q]"
@@ -176,5 +176,5 @@ Verify_Syntax   DCB     "SFLCVER", 0
  ]
 
         ALIGN
-        
+
         END

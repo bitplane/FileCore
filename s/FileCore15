@@ -1871,13 +1871,17 @@ ClaimFiq ROUT
         WritePSRc SVC_mode, R1          ;can re-enable IRQs as cannot get background
         MOV     R1, #Service_ClaimFIQ   ;release unless at least one claim
         SWI     XOS_ServiceCall         ;(R1)
- [ HAL
+ [ HAL :LOR: TryHAL
         Push    "R2,R3,R8,R9"
         MOV     R8, #0
         MOV     R9, #EntryNo_HAL_FIQDisableAll
         SWI     XOS_Hardware
         Pull    "R2,R3,R8,R9"
- |
+ ]
+ [ TryHAL
+        BVC     %FT90
+ ]
+ [ :LNOT:HAL :LOR: TryHAL
         MOV     R1, #IOC
         ASSERT  IOC    :MOD: 256 = 0
         MOV     LR, #0
@@ -1913,15 +1917,20 @@ ReleaseFiq ROUT
         BNE     %FT90
 
         WritePSRc SVC_mode, R1          ;can reenable IRQs as background claim can't
- [ HAL
+ [ HAL :LOR: TryHAL
         Push    "R3,R8,R9"
         MOV     R8, #0
         MOV     R9, #EntryNo_HAL_FIQDisableAll
         SWI     XOS_Hardware
         Pull    "R3,R8,R9"
- |
+ ]
+ [ TryHAL
+        BVC     %FT89
+ ]
+ [ :LNOT:HAL :LOR: TryHAL
         MOV     R1, #IOC                ;succeed until after release
         STRB    R2, [R1,#IOCFIQMSK]     ;Disable all FIQs
+89
  ]
         MOV     R1, #Service_ReleaseFIQ
         SWI     XOS_ServiceCall         ;(R1)
@@ -1969,13 +1978,17 @@ BackgroundClaimFiq ROUT
         BICNE   R3, R3, #Z_bit
         BNE     %FT99                   ;if claim failed return NE
 
- [ HAL
+ [ HAL :LOR: TryHAL
         Push    "R2,R3,R8,R9"
         MOV     R8, #0
         MOV     R9, #EntryNo_HAL_FIQDisableAll
         SWI     XOS_Hardware
         Pull    "R2,R3,R8,R9"
- |
+ ]
+ [ TryHAL
+        BVC     %FT90
+ ]
+ [ :LNOT:HAL :LOR: TryHAL
         MOV     R1, #IOC
         MOV     LR, #0
         STRB    LR, [R1,#IOCFIQMSK]    ;Disable all FIQs
@@ -2001,7 +2014,7 @@ BackgroundClaimFiq ROUT
         LTORG
 
 InitialiseHardware
- [ HAL
+ [ HAL :LOR: TryHAL
         Push    "R0,R1,R8,R9,LR"
         MOV     R8, #1
         MOV     R9, #EntryNo_HAL_CounterRead
