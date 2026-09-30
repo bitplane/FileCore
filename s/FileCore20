@@ -1377,20 +1377,10 @@ ReadFsMap ROUT
         ; Set OldMapFlag, OldDirFlag and AltMapFlag as appropriate:
         ; OldMapFlag set
         ; AltMapFlag clear
-        ; OldDirFlag set only if Floppy, 256 bytes sectors and 16 sectors per track
-        LDR     lr, [r5, #DiscRecord_DiscType]
- [ BigDisc
-        LDR     r0, FileType_FileCoreFloppyDiscStore
-        B       %FT01
-FileType_FileCoreFloppyDiscStore
-        DCD     FileType_FileCoreFloppyDisc
-
-01
- |
-        LDR     r0, =FileType_FileCoreFloppyDisc
- ]
-        TEQ     lr, r0
-        TEQEQ   r7, #8          ; 256 byte sectors
+        ; OldDirFlag follows the legacy 256-byte, 16-sector geometry.
+        ; The directory layout belongs to the filesystem geometry, not
+        ; the media class. Legacy hard-disc images can use this layout too.
+        TEQ     r7, #8          ; 256 byte sectors
         LDREQB  lr, [r5, #DiscRecord_SecsPerTrk]
         TEQEQ   lr, #16         ; 16 sectors per track
  [ DebugL

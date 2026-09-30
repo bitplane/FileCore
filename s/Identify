@@ -446,10 +446,31 @@ IdentifyFileCoreHardDisc ROUT
         LDRVC   r2, =FileType_FileCoreHardDisc
         BVC     %FT90
         BL      SanityCheckDFormat
+        BVC     %FT80
+        ; Old directories can also be stored on fixed media. Validate the
+        ; old map and its root without imposing floppy capacity or density.
+        LDRB    r0, [r5, #DiscRecord_Log2SectorSize]
+        TEQ     r0, #8
+        BNE     %FT85
+        LDRB    r0, [r5, #DiscRecord_SecsPerTrk]
+        TEQ     r0, #16
+        BNE     %FT85
+        MOV     r0, #0
+        BL      SanityCheckOldMap
+        BVS     %FT90
+        LDR     r2, [sp, #1*4]
+        baddr   r1, LFormat_DescribeTag
+        BL      CopyFormatName
+        LDR     r2, =FileType_FileCoreHardDisc
+        B       %FT90
+80
         LDRVC   r2, [sp, #1*4]
         baddr   r1, DFormat_DescribeTag, VC
         BLVC    CopyFormatName
         LDRVC   r2, =FileType_FileCoreHardDisc
+        B       %FT90
+85
+        SETV
 90
  [ DebugL
         BVC     %FT01
